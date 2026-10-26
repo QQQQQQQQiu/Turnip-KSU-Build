@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Phase 30: pack the Magisk/KernelSU module.
 #
-# The payload under module/ is the zip root and is shipped verbatim; the HAL
-# is copied into every device path listed in config.sh after the soname has
-# been patched to vulkan.adreno.so.  Versions live in module/module.prop and
-# are never rewritten here.
+# The payload under module/ is the zip root and is shipped verbatim, except
+# for the version fields: version/versionCode are generated from the Mesa
+# VERSION file at pack time (freedreno_turnip-CI parity) and stamped into the
+# staged module.prop.  The HAL is copied into every device path listed in
+# config.sh after the soname has been patched to vulkan.adreno.so.
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HERE/../config.sh"
@@ -23,8 +24,29 @@ mkdir -p "$stage"
 cp -a "$MODULE_DIR/." "$stage/"
 
 grep -q "^id=$module_id$" "$stage/module.prop" || die "module.prop: id must be $module_id"
-grep -q '^version=' "$stage/module.prop" || die "module.prop: version is missing"
-grep -q '^versionCode=' "$stage/module.prop" || die "module.prop: versionCode is missing"
+
+# The checked-in module.prop deliberately carries no version lines: they are
+# generated from the Mesa tree so they can never go stale.  Read them from
+# the upstream builder's source of truth, then stamp the staged copy.
+module_version="$(mesa_version)"
+module_version_code="$(mesa_version_code)"
+if [ -n "${MODULE_VERSION:-}${MODULE_VERSION_CODE:-}" ]; then
+    log "module version: $module_version ($module_version_code, environment override)"
+else
+    log "module version: $module_version ($module_version_code, from $MESA_DIR/VERSION)"
+fi
+awk -v ver="$module_version" -v code="$module_version_code" '
+    /^version=/ || /^versionCode=/ { next }
+    { print }
+    /^name=/ && !done { print "version=" ver; print "versionCode=" code; done = 1 }
+    END { if (!done) { print "version=" ver; print "versionCode=" code } }
+' "$stage/module.prop" > "$stage/module.prop.tmp"
+mv "$stage/module.prop.tmp" "$stage/module.prop"
+
+[ "$(grep -c '^version=' "$stage/module.prop")" -eq 1 ] || die "module.prop: expected exactly one version= line"
+[ "$(grep -c '^versionCode=' "$stage/module.prop")" -eq 1 ] || die "module.prop: expected exactly one versionCode= line"
+grep -Fqx "version=$module_version" "$stage/module.prop" || die "module.prop: version was not stamped correctly"
+grep -Fqx "versionCode=$module_version_code" "$stage/module.prop" || die "module.prop: versionCode was not stamped correctly"
 
 # Regression guard: KernelSU >= 3 mounts no module files by itself, so the
 # payload must keep the scripts that serve the HAL itself, must carry the

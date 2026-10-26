@@ -17,6 +17,38 @@ need_cmd() {
     command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
 
+# --- module version -------------------------------------------------------
+# Derived exactly like freedreno_turnip-CI: the version is the Mesa VERSION
+# file verbatim and the versionCode is its digits only.  The environment
+# overrides exist solely to pack a prebuilt HAL without a Mesa source tree.
+mesa_version() {
+    if [ -n "${MODULE_VERSION:-}" ]; then
+        printf '%s\n' "$MODULE_VERSION"
+        return 0
+    fi
+    local file="$MESA_DIR/VERSION" version
+    [ -f "$file" ] || die "Mesa VERSION not found: $file (required for the module version; build mesa first or set MODULE_VERSION)"
+    version="$(tr -d '\r\n' < "$file")"
+    [ -n "$version" ] || die "Mesa VERSION is empty: $file"
+    printf '%s\n' "$version"
+}
+
+mesa_version_code() {
+    local version code
+    if [ -n "${MODULE_VERSION_CODE:-}" ]; then
+        code="$MODULE_VERSION_CODE"
+        case "$code" in
+            *[!0-9]*) die "MODULE_VERSION_CODE must be numeric: $code" ;;
+        esac
+        printf '%s\n' "$code"
+        return 0
+    fi
+    version="$(mesa_version)"
+    code="$(printf '%s' "$version" | tr -cd '0-9')"
+    [ -n "$code" ] || die "cannot derive a versionCode from the module version: $version"
+    printf '%s\n' "$code"
+}
+
 # --- verified download cache ---------------------------------------------
 # verify_file <file> [sha256] [sha1_url]
 # Uses the pinned sha256 when given, otherwise the upstream .sha1 sidecar;
@@ -91,26 +123,26 @@ extract_zip_cached() {
 # --- artifact reporting ---------------------------------------------------
 # report_artifacts: write out/SHA256SUMS and out/build-info.json.
 report_artifacts() {
-    local module_version module_code mesa_rev mesa_version sep="" f name sha size
+    local module_version module_code mesa_rev mesa_ver sep="" f name sha size
     [ -d "$OUTDIR" ] || return 0
 
     ( cd "$OUTDIR" && sha256sum ./*.zip 2>/dev/null ) > "$OUTDIR/SHA256SUMS" || true
     [ -s "$OUTDIR/SHA256SUMS" ] || rm -f "$OUTDIR/SHA256SUMS"
 
-    module_version="$(sed -n 's/^version=//p' "$MODULE_DIR/module.prop" | head -n 1)"
-    module_code="$(sed -n 's/^versionCode=//p' "$MODULE_DIR/module.prop" | head -n 1)"
+    module_version="$(mesa_version)"
+    module_code="$(mesa_version_code)"
     mesa_rev=""
-    mesa_version=""
+    mesa_ver=""
     if [ -d "$MESA_DIR/.git" ]; then
         mesa_rev="$(git -C "$MESA_DIR" rev-parse HEAD 2>/dev/null || true)"
     fi
-    [ -f "$MESA_DIR/VERSION" ] && mesa_version="$(cat "$MESA_DIR/VERSION")"
+    [ -f "$MESA_DIR/VERSION" ] && mesa_ver="$(tr -d '\r\n' < "$MESA_DIR/VERSION")"
 
     {
         printf '{\n'
         printf '  "date": "%s",\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         printf '  "mesa": { "src": "%s", "branch": "%s", "rev": "%s", "version": "%s" },\n' \
-               "$mesasrc" "$mesabranch" "$mesa_rev" "$mesa_version"
+               "$mesasrc" "$mesabranch" "$mesa_rev" "$mesa_ver"
         printf '  "module": { "version": "%s", "versionCode": %s },\n' \
                "$module_version" "${module_code:-0}"
         printf '  "artifacts": {'

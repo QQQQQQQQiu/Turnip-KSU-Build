@@ -43,6 +43,13 @@ NDK_SHA256="${NDK_SHA256:-753611f410d002cfcd3f3dc2ef49aad532089d3180b436c060a90b
 # --- target / toolchain ---------------------------------------------------
 sdkver="${SDKVER:-35}"   # load-bearing: stable-C gralloc backend + EFR gating
 
+# --- module version -------------------------------------------------------
+# Generated at pack time from $MESA_DIR/VERSION (version verbatim, versionCode
+# digits only, matching freedreno_turnip-CI).  The overrides are only for
+# packing a prebuilt HAL without a Mesa tree; empty means "derive from Mesa".
+MODULE_VERSION="${MODULE_VERSION:-}"
+MODULE_VERSION_CODE="${MODULE_VERSION_CODE:-}"
+
 # --- module payload -------------------------------------------------------
 module_id="turnip"       # must match module/module.prop
 hal_name="vulkan.adreno.so"

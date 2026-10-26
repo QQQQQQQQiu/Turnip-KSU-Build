@@ -1,16 +1,26 @@
 #!/usr/bin/env bash
 # Phase 50: generate out/update.json for the module update channel.
-# Version data comes from module/module.prop (the single maintained file);
-# the download base comes from RELEASE_BASE in config.sh.
+# Version data is derived from the Mesa VERSION file (freedreno_turnip-CI
+# parity); the download base comes from RELEASE_BASE in config.sh.
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HERE/../config.sh"
 source "$HERE/lib.sh"
 
-version="$(sed -n 's/^version=//p' "$MODULE_DIR/module.prop" | head -n 1)"
-version_code="$(sed -n 's/^versionCode=//p' "$MODULE_DIR/module.prop" | head -n 1)"
-[ -n "$version" ] || die "module.prop: version is missing"
-[ -n "$version_code" ] || die "module.prop: versionCode is missing"
+version="$(mesa_version)"
+version_code="$(mesa_version_code)"
+
+# Phase 30 stamps the staged module.prop from the same source.  When the
+# staging tree exists, make sure update.json advertises the same version as
+# the payload that was (or would be) packed.
+staged_prop="$WORKDIR/pack-module/module.prop"
+if [ -f "$staged_prop" ]; then
+    packed_version="$(sed -n 's/^version=//p' "$staged_prop" | head -n 1)"
+    packed_code="$(sed -n 's/^versionCode=//p' "$staged_prop" | head -n 1)"
+    if [ "$packed_version" != "$version" ] || [ "$packed_code" != "$version_code" ]; then
+        die "staged module.prop is stale (version=$packed_version/$packed_code, mesa=$version/$version_code); rerun ./build.sh module"
+    fi
+fi
 
 mkdir -p "$OUTDIR"
 cat > "$OUTDIR/update.json" <<EOF

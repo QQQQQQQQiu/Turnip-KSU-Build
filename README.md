@@ -7,7 +7,7 @@ The layout is deliberately small and modular:
 
 | Path | Role |
 |------|------|
-| `module/` | module payload (zip root), shipped **verbatim** — real, reviewable, shellcheck-able scripts |
+| `module/` | module payload (zip root), shipped **verbatim** — real, reviewable, shellcheck-able scripts; `module.prop` version fields are stamped at pack time |
 | `scripts/` | one file per build phase |
 | `config.sh` | the only place paths and knobs live (environment-overridable) |
 | `build.sh` | thin entry point |
@@ -84,10 +84,17 @@ source trees are never touched — only the links themselves are removed).
 
 ## Maintainer duties
 
-* Bump `version=` / `versionCode=` in `module/module.prop` (monotonically
-  increasing) and note it in `changelog.md`.  That is the only manual edit
-  needed for a release.
-* `out/update.json` is generated from `module.prop`, so both stay in sync.
+* The module version is generated, not maintained by hand: pack phases read
+  `$MESA_DIR/VERSION` and write `version` (verbatim) and `versionCode` (digits
+  only) into the staged `module.prop`, exactly like `freedreno_turnip-CI`.
+  Mesa `27.0.0-devel` therefore becomes `version=27.0.0-devel`,
+  `versionCode=2700`.  Note the change in `changelog.md`; that is the only
+  manual edit needed for a release.
+* `out/update.json` uses the same Mesa-derived values and is cross-checked
+  against the packed `module.prop`, so the zip and the update channel cannot
+  disagree.  `out/build-info.json` reports both as well.
+* Packing a prebuilt HAL without a Mesa tree (`--hal` with no `--mesa-dir`)
+  requires explicit `MODULE_VERSION` and `MODULE_VERSION_CODE` values.
 * The `mesa` source is abstracted in `config.sh` (`mesasrc`, `mesabranch`);
   it defaults to the maintained fork
   `https://github.com/LFRon/Turnip-Enhanced.git` (branch `main`).
@@ -106,7 +113,8 @@ channel moves.
 
 ## Payload notes
 
-`module/` is shipped verbatim and follows the KernelSU metamodule contract:
+`module/` is shipped verbatim (apart from the generated `version`/`versionCode`
+lines in `module.prop`) and follows the KernelSU metamodule contract:
 
 - The payload is the canonical `system/vendor/...` tree.  Every manager that
   mounts module files provides it through its standard path (a KernelSU

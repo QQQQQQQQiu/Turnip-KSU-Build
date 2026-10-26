@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Module versioning is now derived from the Mesa `VERSION` file instead of
+  being hardcoded in `module/module.prop`: the pack phase stamps `version`
+  (verbatim) and `versionCode` (digits only) into the staged `module.prop`,
+  matching `freedreno_turnip-CI` (Mesa `27.0.0-devel` -> `2700`).
+  `update.json` and `build-info.json` use the same values, and stale staging
+  is rejected.  `MODULE_VERSION` / `MODULE_VERSION_CODE` remain available for
+  packing a prebuilt HAL without a Mesa tree.
 - `module/`: the module now serves the HAL itself on KernelSU, so Turnip also
   works without a metamodule (KernelSU >= 3 mounts no module files by itself:
   v3.3.1 `init_event.rs` only executes a metamodule's `metamount.sh`) and with
