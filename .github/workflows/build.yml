@@ -23,6 +23,7 @@ jobs:
             git python3-pip python3-venv binutils flex bison glslang-tools
           python3 -m venv "$RUNNER_TEMP/meson-venv"
           "$RUNNER_TEMP/meson-venv/bin/python" -m pip install --upgrade pip meson mako packaging
+          echo "$RUNNER_TEMP/meson-venv/bin" >> "$GITHUB_PATH"
 
       - name: Cache workdir (NDK, mesa, staging)
         uses: actions/cache@v4
